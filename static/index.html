@@ -5,30 +5,209 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>反兴奋剂检测与结果管理</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; color: #1f2937; }
-    main { max-width: 820px; margin: auto; }
-    pre { background: #f3f4f6; padding: 1rem; border-radius: 8px; overflow-x: auto; }
-    button { padding: .5rem .8rem; cursor: pointer; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 1.5rem; color: #1f2937; background: #f9fafb; }
+    main { max-width: 960px; margin: auto; }
+    h1 { margin-bottom: .25rem; }
+    .muted { color: #6b7280; }
+    .row { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0 1rem; }
+    select, input, button { padding: .45rem .6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: .9rem; }
+    button { cursor: pointer; background: #2563eb; color: #fff; border-color: #2563eb; }
+    button.secondary { background: #fff; color: #374151; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    .badge { display: inline-block; padding: .15rem .55rem; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+    .ok { background: #dcfce7; color: #166534; }
+    .bad { background: #fee2e2; color: #991b1b; }
+    .warn { background: #fef3c7; color: #92400e; }
+    .gray { background: #e5e7eb; color: #374151; }
+    table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+    th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    th { color: #6b7280; font-weight: 600; }
+    .ranges { font-family: ui-monospace, monospace; font-size: .78rem; color: #475569; }
+    .formgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .5rem; margin-bottom: .5rem; }
+    label { font-size: .78rem; color: #6b7280; display: block; }
+    #msg { white-space: pre-wrap; font-size: .85rem; margin-top: .5rem; }
+    details summary { cursor: pointer; font-weight: 600; margin: .25rem 0; }
   </style>
 </head>
 <body>
 <main>
-  <h1>反兴奋剂检测与结果管理</h1>
-  <p>这是最小演示页面。使用浏览器或 curl 调用 JSON API。</p>
-  <p><button onclick="checkHealth()">检查服务状态</button></p>
-  <pre id="result">等待操作</pre>
-  <h2>常用接口</h2>
-  <pre>GET  /health
-GET  /api/&lt;kind&gt;
-POST /api/&lt;kind&gt;
-GET  /api/entities/&lt;id&gt;
-POST /api/entities/&lt;id&gt;/actions</pre>
+  <h1>反兴奋剂：禁赛处罚期与参赛资格</h1>
+  <p class="muted">处罚期独立建档并版本化；连续未撤销的临时禁赛可抵扣、跨案重叠不重复；满期后需三次复出检测。</p>
+
+  <div class="row">
+    <label>运动员
+      <select id="athlete" style="display:block;min-width:260px"></select>
+    </label>
+    <label>资格评估日期
+      <input id="on" type="date">
+    </label>
+    <button onclick="loadEligibility()">查询资格</button>
+    <button class="secondary" onclick="loadAthletes()">刷新运动员</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div class="card">
+    <h3 style="margin-top:0">处罚期版本与抵扣</h3>
+    <div id="sanctions" class="muted">尚未选择运动员</div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">复出检测（满期后需三次阴性）</h3>
+    <div id="tests"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">比赛结果（登记时按当日生效处罚期校验）</h3>
+    <div id="results"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">登记 / 补录</h3>
+    <details>
+      <summary>登记比赛结果</summary>
+      <div class="formgrid">
+        <div><label>赛事</label><input id="r_event" placeholder="GP Final"></div>
+        <div><label>比赛日期</label><input id="r_date" type="date"></div>
+        <div><label>名次</label><input id="r_placing" placeholder="1st"></div>
+      </div>
+      <button onclick="registerResult()">登记结果</button>
+    </details>
+    <details>
+      <summary>登记复出检测</summary>
+      <div class="formgrid">
+        <div><label>检测日期</label><input id="t_date" type="date"></div>
+        <div><label>结果</label><select id="t_result"><option value="negative">阴性</option></select></div>
+      </div>
+      <button onclick="registerTest()">登记检测</button>
+    </details>
+    <details>
+      <summary>待补老案：补录处罚期</summary>
+      <p class="muted" id="backfillHint">有 pending_backfill 处罚期时，选择版本并输入月数。</p>
+      <div class="formgrid">
+        <div><label>待补处罚期</label><select id="bf_sanction" style="min-width:220px"></select></div>
+        <div><label>禁赛月数</label><input id="bf_months" type="number" min="1" value="12"></div>
+      </div>
+      <button onclick="backfill()">提交补录</button>
+    </details>
+    <div id="msg" class="muted"></div>
+  </div>
 </main>
+
 <script>
-async function checkHealth() {
-  const response = await fetch('/health');
-  document.getElementById('result').textContent = JSON.stringify(await response.json(), null, 2);
+const HEADERS = {'Content-Type': 'application/json', 'X-User-Id': 'admin', 'X-Role': 'admin'};
+let currentAthlete = null;
+
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
+function badge(text, cls) { return `<span class="badge ${cls}">${esc(text)}</span>`; }
+function statusBadge(s) {
+  return {active: ['生效', 'bad'], superseded: ['已被改判', 'gray'],
+          pending_backfill: ['待补', 'warn']}[s] || [s, 'gray'];
+}
+function reasonText(r) {
+  return {suspended: '禁赛中', pending_backfill: '老案待补录',
+          comeback_tests_incomplete: '复出检测未完成',
+          reinstated: '已满期并完成复出检测', no_sanction: '无处罚',
+          no_active_period: '无生效处罚期'}[r] || r;
+}
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || ('HTTP ' + res.status));
+  return body;
+}
+async function loadAthletes() {
+  const data = await api('/api/athletes');
+  const sel = document.getElementById('athlete');
+  sel.innerHTML = data.items.map(a =>
+    `<option value="${a.id}">${esc(a.data.name)} (${esc(a.data.discipline)})</option>`).join('');
+  if (data.items.length) { currentAthlete = data.items[0].id; loadEligibility(); }
+}
+function rangeText(ranges) {
+  if (!ranges || !ranges.length) return '—';
+  return ranges.map(r => `${r.start} → ${r.end}`).join('<br>');
+}
+async function loadEligibility() {
+  currentAthlete = document.getElementById('athlete').value || currentAthlete;
+  if (!currentAthlete) return;
+  const on = document.getElementById('on').value;
+  const d = await api(`/api/athletes/${currentAthlete}/eligibility${on ? '?on=' + on : ''}`);
+  document.getElementById('status').innerHTML = `
+    <div class="card">
+      <h3 style="margin:.2rem 0">当前资格（评估日 ${esc(d.evaluated_on)}）
+        ${d.eligible ? badge('可参赛', 'ok') : badge('不可参赛', 'bad')}
+        ${badge(reasonText(d.reason), d.eligible ? 'ok' : 'warn')}
+      </h3>
+      <div class="ranges">${esc(JSON.stringify(d.detail))}</div>
+    </div>`;
+
+  const sRows = d.sanctions.map(s => {
+    const [label, cls] = statusBadge(s.status);
+    return `<tr>
+      <td>v${esc(s.revision)} ${badge(label, cls)}${s.superseded_reason ? '<div class="muted">'+esc(s.superseded_reason)+'</div>' : ''}</td>
+      <td>${esc(s.months)} 个月<br><span class="muted">决定 ${esc(s.decision_date)}</span></td>
+      <td>原始 ${esc(s.raw_start)} → ${esc(s.raw_end)}<br>抵扣后结束 <b>${esc(s.adjusted_end)}</b></td>
+      <td>抵扣 <b>${esc(s.credited_days)}</b> 天<div class="ranges">${rangeText(s.credit_ranges)}</div></td>
+      <td class="ranges">${rangeText(s.blocked_ranges)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('sanctions').innerHTML = d.sanctions.length ? `<table>
+    <tr><th>版本</th><th>刑期</th><th>起止</th><th>临时禁赛抵扣</th><th>生效区间（命中即拒）</th></tr>${sRows}</table>`
+    : '<span class="muted">无处罚期</span>';
+
+  document.getElementById('tests').innerHTML = d.comeback_tests.length ? `<table>
+    <tr><th>日期</th><th>结果</th><th>状态</th></tr>` +
+    d.comeback_tests.map(t => `<tr><td>${esc(t.test_date)}</td><td>${esc(t.result)}</td><td>${esc(t.status)}</td></tr>`).join('')
+    + '</table>' : '<span class="muted">暂无复出检测</span>';
+
+  document.getElementById('results').innerHTML = d.results.length ? `<table>
+    <tr><th>赛事</th><th>日期</th><th>名次</th><th>状态</th></tr>` +
+    d.results.map(r => {
+      const cls = r.status === 'annulled' ? 'warn' : r.status === 'rejected' ? 'bad' : 'ok';
+      return `<tr><td>${esc(r.event)}</td><td>${esc(r.event_date)}</td><td>${esc(r.placing)}</td><td>${badge(r.status, cls)}</td></tr>`;
+    }).join('') + '</table>' : '<span class="muted">暂无结果</span>';
+
+  const pending = d.sanctions.filter(s => s.status === 'pending_backfill');
+  document.getElementById('bf_sanction').innerHTML = pending.length
+    ? pending.map(s => `<option value="${s.id}">${esc(s.case_id)} v${esc(s.revision)}</option>`).join('')
+    : '<option value="">（无待补处罚期）</option>';
+}
+function msg(text, ok) {
+  const el = document.getElementById('msg');
+  el.style.color = ok ? '#166534' : '#991b1b';
+  el.textContent = text;
+}
+async function registerResult() {
+  try {
+    await api('/api/competition_results', {method: 'POST', headers: HEADERS, body: JSON.stringify({
+      athlete_id: currentAthlete, event: document.getElementById('r_event').value,
+      event_date: document.getElementById('r_date').value, placing: document.getElementById('r_placing').value})});
+    msg('登记成功（已保留原成绩）', true);
+  } catch (e) { msg('登记被拒绝，原成绩已保留为 rejected：' + e.message, false); }
+  loadEligibility();
+}
+async function registerTest() {
+  try {
+    await api('/api/comeback_tests', {method: 'POST', headers: HEADERS, body: JSON.stringify({
+      athlete_id: currentAthlete, test_date: document.getElementById('t_date').value,
+      result: document.getElementById('t_result').value})});
+    msg('复出检测已登记', true);
+  } catch (e) { msg(e.message, false); }
+  loadEligibility();
+}
+async function backfill() {
+  const sid = document.getElementById('bf_sanction').value;
+  if (!sid) return msg('没有待补录的处罚期', false);
+  try {
+    await api(`/api/entities/${sid}/actions`, {method: 'POST', headers: HEADERS,
+      body: JSON.stringify({action: 'backfill', data: {months: parseInt(document.getElementById('bf_months').value, 10)}})});
+    msg('补录完成，已按同一套规则计算抵扣并处理成绩', true);
+  } catch (e) { msg(e.message, false); }
+  loadEligibility();
+}
+loadAthletes();
 </script>
 </body>
 </html>
