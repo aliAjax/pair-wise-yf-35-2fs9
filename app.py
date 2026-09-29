@@ -19,6 +19,9 @@ def main(argv=None):
     repository = SQLiteRepository(args.db)
     rules = RuleEngine()
     service = DomainService(repository, rules)
+    # Upgrade step: old cases decided before sanction periods existed get a
+    # pending_backfill placeholder so they show up and block participation.
+    service.provision_legacy_cases()
     static_dir = Path(__file__).resolve().parent / "static"
     server = create_server(args.host, args.port, service, rules, str(static_dir))
 

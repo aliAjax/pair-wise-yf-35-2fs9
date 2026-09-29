@@ -87,6 +87,17 @@ def create_handler(service, rules, static_dir):
                     return self._send(200, {"items": service.audit_log()})
                 if len(parts) == 3 and parts[:2] == ["api", "entities"]:
                     return self._send(200, service.get(parts[2]))
+                if (
+                    len(parts) == 4
+                    and parts[0] == "api"
+                    and parts[1] in ("athletes", "athlete")
+                    and parts[3] == "eligibility"
+                ):
+                    query = parse_qs(parsed.query)
+                    as_of = query.get("as_of", [None])[0]
+                    return self._send(
+                        200, service.eligibility(parts[2], as_of=as_of)
+                    )
                 if len(parts) >= 2 and parts[0] == "api":
                     if parts[1] == "entities":
                         raise NotFoundError("not found")
